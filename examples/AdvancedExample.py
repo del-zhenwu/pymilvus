@@ -1,7 +1,9 @@
-import sys
 from milvus import Milvus, IndexType
 from milvus.client.Exceptions import *
+from contextlib import contextmanager
 from functools import wraps
+from pprint import pprint
+import sys
 import time
 import random
 

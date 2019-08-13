@@ -4,6 +4,7 @@ import pytest
 # local application imports
 from factorys import *
 from milvus import Milvus, IndexType
+from milvus.client.GrpcClient import GrpcMilvus
 
 
 def pytest_addoption(parser):
@@ -32,7 +33,7 @@ def connect(request):
 def gcon(request):
     ip = request.config.getoption("--ip")
     port = request.config.getoption("--port")
-    milvus = Milvus()
+    milvus = GrpcMilvus()
     milvus.connect(host=ip, port=port)
 
     def fin():
@@ -87,8 +88,8 @@ def gtable(request, gcon):
 
     def teardown():
         status, table_names = gcon.show_tables()
-        for name in table_names:
-            gcon.delete_table(name)
+        for table_name in table_names:
+            gcon.delete_table(table_name)
 
     request.addfinalizer(teardown)
 

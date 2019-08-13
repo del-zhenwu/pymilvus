@@ -1,9 +1,12 @@
+import time
 import os
 from multiprocessing import Process
 import sys
+from functools import wraps
+
 
 sys.path.append(".")
-from milvus import Milvus
+from milvus.client.GrpcClient import GrpcMilvus
 from factorys import *
 
 table_name = 'test_test'
@@ -39,7 +42,7 @@ def timer(func):
 
 
 def create_table(_table_name):
-    milvus = Milvus()
+    milvus = GrpcMilvus()
     milvus.connect(host="localhost", port="19530")
     if milvus.has_table(_table_name):
         print(f"Table {_table_name} found, now going to delete it")
@@ -58,7 +61,7 @@ def multi_conn(_table_name, proce_num):
     process_list = []
 
     def _conn():
-        milvus = Milvus()
+        milvus = GrpcMilvus()
         status = milvus.connect()
 
         if not status.OK:
@@ -83,7 +86,7 @@ def multi_conn(_table_name, proce_num):
 
 
 def check_insert(_table_name, proce_num):
-    milvus = Milvus()
+    milvus = GrpcMilvus()
     milvus.connect(host="localhost", port="19530")
 
     status, count = milvus.get_table_row_count(_table_name)
@@ -93,7 +96,7 @@ def check_insert(_table_name, proce_num):
     print(f'')
 
 
-def run_multi_process(_table_name):
+def run_multi_proce(_table_name):
     for np in process_value_list:
         create_table(table_name)
         multi_conn(table_name, np)
@@ -103,4 +106,5 @@ def run_multi_process(_table_name):
 
 
 if __name__ == '__main__':
-    run_multi_process(table_name)
+    run_multi_proce(table_name)
+    pass

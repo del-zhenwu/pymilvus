@@ -5,7 +5,7 @@ Module milvus
 Milvus
 --------------------------------
 
-.. autoclass:: milvus.client.GrpcClient.GrpcMilvus
+.. autoclass:: milvus.Milvus
     :members:
     :undoc-members:
     :show-inheritance:

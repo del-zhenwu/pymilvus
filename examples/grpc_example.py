@@ -1,9 +1,8 @@
 import random
 import time
+from milvus import GrpcMilvus, Status, IndexType
 
-from milvus import Milvus, IndexType
-
-_DIM = 512
+dim = 512
 nb = 100000  # number of vector dataset
 nq = 10  # number of query vector
 table_name = 'example'
@@ -14,20 +13,20 @@ server_config = {
     "port": '19530',
 }
 
-milvus = Milvus()
+milvus = GrpcMilvus()
 milvus.connect(**server_config)
 
 
-def random_vectors(num):
+def ramdom_vectors(num):
 
     # generate vectors randomly
-    return [[random.random() for _ in range(_DIM)] for _ in range(num)]
+    return [[random.random() for _ in range(dim)] for _ in range(num)]
 
 
 def create_table():
     param = {
         'table_name': table_name,
-        'dimension': _DIM,
+        'dimension': dim,
         'index_type': IndexType.FLAT,
         'store_raw_vector': False
     }
@@ -45,7 +44,7 @@ def delete_table():
     if status.OK():
         print("table {} delete successfully!".format(table_name))
     else:
-        print("table {} delete failed: {}".format(table_name, status.message))
+        print("table {} delet failed: {}".format(table_name, status.message))
 
 
 def describe_table():
@@ -79,30 +78,30 @@ def insert_vectors(_vectors):
 
     status, count = milvus.get_table_row_count(table_name)
     if status.OK() and count == len(_vectors):
-        print("insert vectors into table `{}` successfully!".format(table_name))
+        print("insert vectors into table `{}` succesfully!".format(table_name))
 
 
-def search_vectors(_query_vectors):
+def search_vectors(query_vectors):
     """
     search vectors and display results
 
-    :param _query_vectors:
+    :param query_vectors:
     :return: None
     """
 
-    status, results = milvus.search_vectors(table_name=table_name, query_records=_query_vectors, top_k=top_K)
+    status, results = milvus.search_vectors(table_name=table_name, query_records=query_vectors, top_k=top_K)
     if status.OK():
         print("Search successfully!")
         for result_record in results:
             print(result_record)
     else:
-        print("search failed: {}".format(status.message))
+        print("serach failed: {}".format(status.message))
 
 
 if __name__ == '__main__':
 
     # generate dataset vectors
-    vectors = random_vectors(nb)
+    vectors = ramdom_vectors(nb)
 
     create_table()
 
@@ -110,7 +109,7 @@ if __name__ == '__main__':
 
     insert_vectors(vectors)
 
-    query_vectors = random_vectors(nq)
+    query_vectors = ramdom_vectors(nq)
 
     search_vectors(query_vectors)
 

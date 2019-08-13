@@ -35,7 +35,6 @@
 - \#71 ISSUE: Update thrift api, search vectors results are binaries
 - \#73 ISSUE: Change table schema print format
 - \#74 ISSUE: Add a new attribute server_address
-- \#77 ISSUE: print out TopKResult more friendly
 ### New Feature
 ---
 - \#3
@@ -62,14 +61,6 @@
 - \#21 ISSUE
     - support search by range
     - fix server_status return None bug
-    
-- \#76 ISSUE
-    - replace thrift with grpc
-
-- \#79 ISSUE
-    - add new indextype MIN_NSG
-    - fix indextype name bug
-
 ### Task
 ---
 - \#1 Build Repository

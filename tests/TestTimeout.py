@@ -3,10 +3,12 @@ import time
 sys.path.append('.')
 from milvus import Milvus, IndexType
 import random
+from pprint import pprint
 
 
 def main():
     milvus = Milvus()
+    #milvus.connect("192.1.2.222")
     milvus.connect()
 
     table_name = 'test_timeout'
@@ -14,8 +16,8 @@ def main():
     if milvus.has_table(table_name):
         milvus.delete_table(table_name)
 
-    print(f"sleep 1 s")
-    time.sleep(1)
+    print(f"sleep 5 s")
+    time.sleep(5)
 
     if not milvus.has_table(table_name):
         param = {
