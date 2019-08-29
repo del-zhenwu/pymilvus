@@ -11,3 +11,5 @@ doc/en/build/
 .env
 temp/
 *.swp
+.coverage
+htmlcov/

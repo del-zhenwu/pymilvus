@@ -209,11 +209,10 @@ class Milvus(ConnectIntf):
         else:
             raise RuntimeError(
                 "invalid configuration for THRIFTCLIENT_PROTOCOL: {protocol}"
-                .format(protocol=config.THRIFTCLIENT_PROTOCOL)
+                    .format(protocol=config.THRIFTCLIENT_PROTOCOL)
             )
 
         self._client = MilvusService.Client(protocol)
-
 
     def connect(self, host=None, port=None, uri=None, timeout=3000):
         """
@@ -618,7 +617,14 @@ class Milvus(ConnectIntf):
                 count = len(ids) // 8
                 assert count == len(distances) // 8
 
-                ids = struct.unpack(str(count) + 'l', ids)
+                if 8 == struct.calcsize('l'):
+                    ids = struct.unpack(str(count) + 'l', ids)
+                elif 8 == struct.calcsize('q'):
+                    ids = struct.unpack(str(count) + 'q', ids)
+                else:
+                    raise struct.error(
+                        "Struct error: bytes should be unpacked into 8 bytes long integer but platform not support")
+
                 distances = struct.unpack(str(count) + 'd', distances)
 
                 qr = [QueryResult(ids[i], distances[i]) for i in range(count)]
@@ -632,8 +638,6 @@ class Milvus(ConnectIntf):
         except ttypes.Exception as e:
             LOGGER.error(e)
             return Status(code=e.code, message=e.reason), res
-
-
 
     def _search_vectors(self, table_name, top_k, query_records, query_ranges=None):
         if not self.connected():
