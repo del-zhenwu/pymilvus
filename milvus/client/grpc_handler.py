@@ -1,7 +1,7 @@
 import datetime
-import os
 from urllib.parse import urlparse
 import logging
+import threading
 
 import grpc
 from grpc._cython import cygrpc
@@ -901,12 +901,12 @@ class GrpcHandler(ConnectIntf):
 
         try:
             self._search_hook.pre_search()
-            print("[{}] | [{}] | [{}] | [milvus] Start search ...".format(datetime.datetime.now(), os.getpid(), iden))
+            # print("[{}] | [{}] | [{}] | [milvus] Start search ...".format(datetime.datetime.now(), os.getpid(), iden))
             ft = self._stub.Search.future(request)
-            print("[{}] | [{}] | [{}] | [milvus] Obtain search result ...".format(datetime.datetime.now(), os.getpid(), iden))
+            # print("[{}] | [{}] | [{}] | [milvus] Obtain search result ...".format(datetime.datetime.now(), os.getpid(), iden))
             response = ft.result()
             ft.__del__()
-            print("[{}] | [{}] | [{}] | [milvus] Search done.".format(datetime.datetime.now(), os.getpid(), iden))
+            # print("[{}] | [{}] | [{}] | [milvus] Search done.".format(datetime.datetime.now(), os.getpid(), iden))
             self._search_hook.aft_search()
 
             if self._search_hook.on_response():
