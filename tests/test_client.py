@@ -247,34 +247,6 @@ class TestQueryResult:
                 print(item)
 
 
-class TestDeleteByID:
-    def test_delete_by_id_normal(self, gcon, gcollection):
-        vectors = records_factory(dim, nq)
-        status, ids = gcon.insert(gcollection, vectors)
-        assert status.OK()
-
-        time.sleep(2)
-
-        status = gcon.delete_by_id(gcollection, ids[0:10])
-        assert status.OK()
-
-    def test_delete_by_id_wrong_param(self, gcon, gcollection):
-        with pytest.raises(ParamError):
-            gcon.delete_by_id(gcollection, "aaa")
-
-    @pytest.mark.skip
-    def test_delete_by_id_succeed_id(self, gcon, gcollection):
-        vectors = records_factory(dim, nq)
-        status, ids = gcon.insert(gcollection, vectors)
-        assert status.OK()
-
-        time.sleep(2)
-
-        ids_exceed = [ids[-1] + 10]
-        status = gcon.delete_by_id(gcollection, ids_exceed)
-        assert not status.OK()
-
-
 class TestFlush:
     def test_flush(self, gcon):
         collection_param = {
