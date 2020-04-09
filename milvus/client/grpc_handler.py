@@ -822,12 +822,9 @@ class GrpcHandler(ConnectIntf):
 
             func = kwargs.get("_callback", None)
             return SearchFuture(future, func)
-        # print("[{}] | [{}] | [{}] | [milvus] Start search ...".format(datetime.datetime.now(), os.getpid(), iden))
         ft = self._stub.Search.future(request)
-        # print("[{}] | [{}] | [{}] | [milvus] Obtain search result ...".format(datetime.datetime.now(), os.getpid(), iden))
         response = ft.result()
         ft.__del__()
-        # print("[{}] | [{}] | [{}] | [milvus] Search done.".format(datetime.datetime.now(), os.getpid(), iden))
         self._search_hook.aft_search()
 
         if self._search_hook.on_response():
