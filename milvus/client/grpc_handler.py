@@ -24,6 +24,25 @@ from . import __version__
 LOGGER = logging.getLogger(__name__)
 
 
+def error_handler(*rargs):
+    def wrapper(func):
+        def handler(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except grpc.FutureTimeoutError as e:
+                LOGGER.error("{}:\n{}".format(func.__name__, e))
+                status = Status(Status.UNEXPECTED_ERROR, message='Request timeout')
+                return tuple([status]) + rargs
+            except grpc.RpcError as e:
+                LOGGER.error("{}:\n{}".format(func.__name__, e))
+                status = Status(e.code(), message='Error occurred. {}'.format(e.details()))
+                return tuple([status]) + rargs
+
+        return handler
+
+    return wrapper
+
+
 class GrpcHandler(ConnectIntf):
     def __init__(self, host=None, port=None, **kwargs):
         self._channel = None
@@ -298,20 +317,15 @@ class GrpcHandler(ConnectIntf):
         """
         return self._cmd(cmd='status', timeout=timeout)
 
+    @error_handler(None)
     def _cmd(self, cmd, timeout=10):
         cmd = Prepare.cmd(cmd)
-        try:
-            response = self._stub.Cmd.future(cmd).result(timeout=timeout)
-            if response.status.error_code == 0:
-                return Status(message='Success!'), response.string_reply
 
-            return Status(code=response.status.error_code, message=response.status.reason), None
-        except grpc.FutureTimeoutError as e:
-            LOGGER.error(e)
-            return Status(Status.UNEXPECTED_ERROR, message='Request timeout'), None
-        except grpc.RpcError as e:
-            LOGGER.error(e)
-            return Status(e.code(), message='Error occurred. {}'.format(e.details())), None
+        response = self._stub.Cmd.future(cmd).result(timeout=timeout)
+        if response.status.error_code == 0:
+            return Status(message='Success!'), response.string_reply
+
+        return Status(code=response.status.error_code, message=response.status.reason), None
 
     def create_table(self, table_name, dimension, index_file_size, metric_type, param, timeout=10):
         """
@@ -322,7 +336,7 @@ class GrpcHandler(ConnectIntf):
 
                 `example param={'table_name': 'name',
                                 'dimension': 16,
-                                'index_file_size': 1024 (default)，
+                                'index_file_size': 1024 (default),
                                 'metric_type': Metric_type.L2 (default)
                                 }`
 
@@ -337,20 +351,14 @@ class GrpcHandler(ConnectIntf):
 
         table_schema = Prepare.table_schema(table_name, dimension, index_file_size, metric_type, param)
 
-        try:
-            status = self._stub.CreateTable.future(table_schema).result(timeout=timeout)
-            if status.error_code == 0:
-                return Status(message='Create table successfully!')
+        status = self._stub.CreateTable.future(table_schema).result(timeout=timeout)
+        if status.error_code == 0:
+            return Status(message='Create table successfully!')
 
-            LOGGER.error(status)
-            return Status(code=status.error_code, message=status.reason)
-        except grpc.FutureTimeoutError as e:
-            LOGGER.error(e)
-            return Status(Status.UNEXPECTED_ERROR, message='Request timeout')
-        except grpc.RpcError as e:
-            LOGGER.error(e)
-            return Status(e.code(), message='Error occurred: {}'.format(e.details()))
+        LOGGER.error(status)
+        return Status(code=status.error_code, message=status.reason)
 
+    @error_handler(False)
     def has_table(self, table_name, timeout=10):
         """
 
@@ -369,20 +377,14 @@ class GrpcHandler(ConnectIntf):
 
         table_name = Prepare.table_name(table_name)
 
-        try:
-            reply = self._stub.HasTable.future(table_name).result(timeout=timeout)
-            if reply.status.error_code == 0:
-                return Status(), reply.bool_reply
+        reply = self._stub.HasTable.future(table_name).result(timeout=timeout)
+        if reply.status.error_code == 0:
+            return Status(), reply.bool_reply
 
-            return Status(code=reply.status.error_code,
-                          message=reply.status.reason), False
-        except grpc.FutureTimeoutError as e:
-            LOGGER.error(e)
-            return Status(code=Status.UNEXPECTED_ERROR, message="request timeout"), False
-        except grpc.RpcError as e:
-            LOGGER.error(e)
-            return Status(code=e.code(), message=e.details()), False
+        return Status(code=reply.status.error_code,
+                      message=reply.status.reason), False
 
+    @error_handler(None)
     def describe_table(self, table_name, timeout=10):
         """
         Show table information
@@ -398,29 +400,22 @@ class GrpcHandler(ConnectIntf):
 
         table_name = Prepare.table_name(table_name)
 
-        try:
-            response = self._stub.DescribeTable.future(table_name).result(timeout=timeout)
+        response = self._stub.DescribeTable.future(table_name).result(timeout=timeout)
 
-            if response.status.error_code == 0:
-                table = CollectionSchema(
-                    collection_name=response.table_name,
-                    dimension=response.dimension,
-                    index_file_size=response.index_file_size,
-                    metric_type=MetricType(response.metric_type)
-                )
+        if response.status.error_code == 0:
+            table = CollectionSchema(
+                collection_name=response.table_name,
+                dimension=response.dimension,
+                index_file_size=response.index_file_size,
+                metric_type=MetricType(response.metric_type)
+            )
 
-                return Status(message='Describe table successfully!'), table
+            return Status(message='Describe table successfully!'), table
 
-            LOGGER.error(response.status)
-            return Status(code=response.status.error_code, message=response.status.reason), None
+        LOGGER.error(response.status)
+        return Status(code=response.status.error_code, message=response.status.reason), None
 
-        except grpc.FutureTimeoutError as e:
-            LOGGER.error(e)
-            return Status(Status.UNEXPECTED_ERROR, message='Request timeout'), None
-        except grpc.RpcError as e:
-            LOGGER.error(e)
-            return Status(e.code(), message='Error occurred. {}'.format(e.details())), None
-
+    @error_handler(None)
     def count_table(self, table_name, timeout=30):
         """
         obtain vector number in table
@@ -436,19 +431,13 @@ class GrpcHandler(ConnectIntf):
 
         table_name = Prepare.table_name(table_name)
 
-        try:
-            response = self._stub.CountTable.future(table_name).result(timeout=timeout)
-            if response.status.error_code == 0:
-                return Status(message='Success!'), response.table_row_count
+        response = self._stub.CountTable.future(table_name).result(timeout=timeout)
+        if response.status.error_code == 0:
+            return Status(message='Success!'), response.table_row_count
 
-            return Status(code=response.status.error_code, message=response.status.reason), None
-        except grpc.FutureTimeoutError as e:
-            LOGGER.error(e)
-            return Status(Status.UNEXPECTED_ERROR, message='Request timeout'), None
-        except grpc.RpcError as e:
-            LOGGER.error(e)
-            return Status(e.code(), message='Error occurred. {}'.format(e.details())), None
+        return Status(code=response.status.error_code, message=response.status.reason), None
 
+    @error_handler([])
     def show_tables(self, timeout=10):
         """
         Show all tables information in database
@@ -463,34 +452,25 @@ class GrpcHandler(ConnectIntf):
         """
 
         cmd = Prepare.cmd('show_tables')
-        try:
-            response = self._stub.ShowTables.future(cmd).result(timeout=timeout)
-            if response.status.error_code == 0:
-                return Status(message='Show tables successfully!'), \
-                       [name for name in response.table_names if len(name) > 0]
-            return Status(response.status.error_code, message=response.status.reason), []
-        except grpc.FutureTimeoutError:
-            return Status(Status.UNEXPECTED_ERROR, message="Request timeout"), []
-        except grpc.RpcError as e:
-            LOGGER.error(e)
-            return Status(e.code(), message='Error occurred. {}'.format(e.details())), []
+        response = self._stub.ShowTables.future(cmd).result(timeout=timeout)
+        if response.status.error_code == 0:
+            return Status(message='Show tables successfully!'), \
+                   [name for name in response.table_names if len(name) > 0]
+        return Status(response.status.error_code, message=response.status.reason), []
 
+    @error_handler(None)
     def show_table_info(self, table_name, timeout=10):
         request = grpc_types.TableName(table_name=table_name)
 
-        try:
-            response = self._stub.ShowTableInfo.future(request).result(timeout=timeout)
-            rpc_status = response.status
+        response = self._stub.ShowTableInfo.future(request).result(timeout=timeout)
+        rpc_status = response.status
 
-            if rpc_status.error_code == 0:
-                return Status(), TableInfo(response)
+        if rpc_status.error_code == 0:
+            return Status(), TableInfo(response)
 
-            return Status(rpc_status.error_code, rpc_status.reason), None
-        except grpc.FutureTimeoutError:
-            return Status(Status.UNEXPECTED_ERROR, message="Request timeout"), None
-        except grpc.RpcError as e:
-            return Status(Status.UNEXPECTED_ERROR, e.details()), None
+        return Status(rpc_status.error_code, rpc_status.reason), None
 
+    @error_handler()
     def preload_table(self, table_name, timeout=None):
         """
         Load table to cache in advance
@@ -504,15 +484,10 @@ class GrpcHandler(ConnectIntf):
 
         table_name = Prepare.table_name(table_name)
 
-        try:
-            status = self._stub.PreloadTable.future(table_name).result(timeout=timeout)
-            return Status(code=status.error_code, message=status.reason)
-        except grpc.FutureTimeoutError as e:
-            LOGGER.error(e)
-            return Status(Status.UNEXPECTED_ERROR, message='Request timeout')
-        except grpc.RpcError as e:
-            return Status(code=e.code(), message='Error occurred. {}'.format(e.details()))
+        status = self._stub.PreloadTable.future(table_name).result(timeout=timeout)
+        return Status(code=status.error_code, message=status.reason)
 
+    @error_handler()
     def drop_table(self, table_name, timeout=20):
         """
         Delete table with table_name
@@ -526,18 +501,12 @@ class GrpcHandler(ConnectIntf):
 
         table_name = Prepare.table_name(table_name)
 
-        try:
-            status = self._stub.DropTable.future(table_name).result(timeout=timeout)
-            if status.error_code == 0:
-                return Status(message='Delete table successfully!')
-            return Status(code=status.error_code, message=status.reason)
-        except grpc.FutureTimeoutError as e:
-            LOGGER.error(e)
-            return Status(Status.UNEXPECTED_ERROR, message='Request timeout')
-        except grpc.RpcError as e:
-            LOGGER.error(e)
-            return Status(e.code(), message='Error occurred: {}'.format(e.details()))
+        status = self._stub.DropTable.future(table_name).result(timeout=timeout)
+        if status.error_code == 0:
+            return Status(message='Delete table successfully!')
+        return Status(code=status.error_code, message=status.reason)
 
+    @error_handler([])
     def insert(self, table_name, records, ids=None, partition_tag=None, params=None, timeout=-1, **kwargs):
         """
         Add vectors to table
@@ -579,59 +548,41 @@ class GrpcHandler(ConnectIntf):
         body = insert_param if insert_param \
             else Prepare.insert_param(table_name, records, partition_tag, ids, params)
 
-        try:
-            if timeout == -1:
-                response = self._stub.Insert(body)
-            else:
+        if timeout == -1:
+            response = self._stub.Insert(body)
+        else:
                 response = self._stub.Insert.future(body).result(timeout=timeout)
 
-            if response.status.error_code == 0:
-                return Status(message='Add vectors successfully!'), list(response.vector_id_array)
+        if response.status.error_code == 0:
+            return Status(message='Add vectors successfully!'), list(response.vector_id_array)
 
-            return Status(code=response.status.error_code, message=response.status.reason), []
-        except grpc.RpcError as e:
-            LOGGER.error(e)
-            return Status(e.code(), message='Error occurred. {}'.format(e.details())), []
-        except grpc.FutureTimeoutError as e:
-            LOGGER.error(e)
-            return Status(code=Status.UNEXPECTED_ERROR, message="Request timeout"), []
+        return Status(code=response.status.error_code, message=response.status.reason), []
 
+    @error_handler([])
     def get_vector_by_id(self, table_name, v_id, timeout=10):
         request = grpc_types.VectorIdentity(table_name=table_name, id=v_id)
 
-        try:
-            response = self._stub.GetVectorByID.future(request).result(timeout=timeout)
-            status = response.status
-            if status.error_code == 0:
-                status = Status(message="Obtain vector successfully")
-                return status, \
-                       list(response.vector_data.float_data) or bytes(response.vector_data.binary_data)
+        response = self._stub.GetVectorByID.future(request).result(timeout=timeout)
+        status = response.status
+        if status.error_code == 0:
+            status = Status(message="Obtain vector successfully")
+            return status, \
+                   list(response.vector_data.float_data) or bytes(response.vector_data.binary_data)
 
-            return Status(code=status.error_code, message=status.reason), []
-        except grpc.FutureTimeoutError as e:
-            LOGGER.error(e)
-            return Status(Status.UNEXPECTED_ERROR, message='Request timeout'), []
-        except grpc.RpcError as e:
-            LOGGER.error(e)
-            return Status(e.code(), message='Error occurred: {}'.format(e.details())), []
+        return Status(code=status.error_code, message=status.reason), []
 
+    @error_handler([])
     def get_vector_ids(self, table_name, segment_name, timeout=10):
         request = grpc_types.GetVectorIDsParam(table_name=table_name, segment_name=segment_name)
 
-        try:
-            response = self._stub.GetVectorIDs.future(request).result(timeout=timeout)
+        response = self._stub.GetVectorIDs.future(request).result(timeout=timeout)
 
-            if response.status.error_code == 0:
-                vec = list(response.vector_id_array)
-                return Status(), vec
-            return Status(response.status.error_code, response.status.reason), []
-        except grpc.FutureTimeoutError as e:
-            LOGGER.error(e)
-            return Status(Status.UNEXPECTED_ERROR, message="Request timeout"), []
-        except grpc.RpcError as e:
-            LOGGER.error(e)
-            return Status(e.code(), message="Error occurred: {}".format(e.details())), []
+        if response.status.error_code == 0:
+            vec = list(response.vector_id_array)
+            return Status(), vec
+        return Status(response.status.error_code, response.status.reason), []
 
+    @error_handler()
     def create_index(self, table_name, index_type=None, params=None, timeout=None):
         """
         build vectors of specific table and create vector index
@@ -656,20 +607,14 @@ class GrpcHandler(ConnectIntf):
         :return: Status, indicate if operation is successful
         """
         index_param = Prepare.index_param(table_name, index_type, params)
-        try:
-            status = self._stub.CreateIndex.future(index_param).result(timeout=timeout)
+        status = self._stub.CreateIndex.future(index_param).result(timeout=timeout)
 
-            if status.error_code == 0:
-                return Status(message='Build index successfully!')
+        if status.error_code == 0:
+            return Status(message='Build index successfully!')
 
-            return Status(code=status.error_code, message=status.reason)
-        except grpc.FutureTimeoutError as e:
-            LOGGER.error(e)
-            return Status(Status.UNEXPECTED_ERROR, message='Request timeout')
-        except grpc.RpcError as e:
-            LOGGER.error(e)
-            return Status(e.code(), message='Error occurred. {}'.format(e.details()))
+        return Status(code=status.error_code, message=status.reason)
 
+    @error_handler()
     def describe_index(self, table_name, timeout=10):
         """
         Show index information of designated table
@@ -685,25 +630,19 @@ class GrpcHandler(ConnectIntf):
 
         table_name = Prepare.table_name(table_name)
 
-        try:
-            index_param = self._stub.DescribeIndex.future(table_name).result(timeout=timeout)
+        index_param = self._stub.DescribeIndex.future(table_name).result(timeout=timeout)
 
-            status = index_param.status
+        status = index_param.status
 
-            if status.error_code == 0:
-                return Status(message="Successfully"), \
-                       IndexParam(index_param.table_name,
-                                  index_param.index_type,
-                                  index_param.extra_params)
+        if status.error_code == 0:
+            return Status(message="Successfully"), \
+                   IndexParam(index_param.table_name,
+                              index_param.index_type,
+                              index_param.extra_params)
 
-            return Status(code=status.error_code, message=status.reason), None
-        except grpc.FutureTimeoutError as e:
-            LOGGER.error(e)
-            return Status(code=Status.UNEXPECTED_ERROR, message='Request timeout'), None
-        except grpc.RpcError as e:
-            LOGGER.error(e)
-            return Status(e.code(), message='Error occurred. {}'.format(e.details())), None
+        return Status(code=status.error_code, message=status.reason), None
 
+    @error_handler()
     def drop_index(self, table_name, timeout=10):
         """
         drop index from index file
@@ -718,16 +657,10 @@ class GrpcHandler(ConnectIntf):
         """
 
         table_name = Prepare.table_name(table_name)
-        try:
-            status = self._stub.DropIndex.future(table_name).result(timeout=timeout)
-            return Status(code=status.error_code, message=status.reason)
-        except grpc.FutureTimeoutError as e:
-            LOGGER.error(e)
-            return Status(Status.UNEXPECTED_ERROR, message='Request timeout')
-        except grpc.RpcError as e:
-            LOGGER.error(e)
-            return Status(e.code(), message='Error occurred. {}'.format(e.details()))
+        status = self._stub.DropIndex.future(table_name).result(timeout=timeout)
+        return Status(code=status.error_code, message=status.reason)
 
+    @error_handler()
     def create_partition(self, table_name, partition_tag, timeout=10):
         """
         create a specific partition under designated table. After done, the meta file in
@@ -752,16 +685,10 @@ class GrpcHandler(ConnectIntf):
         """
         request = Prepare.partition_param(table_name, partition_tag)
 
-        try:
-            response = self._stub.CreatePartition.future(request).result(timeout=timeout)
-            return Status(code=response.error_code, message=response.reason)
-        except grpc.FutureTimeoutError as e:
-            LOGGER.error(e)
-            return Status(code=Status.UNEXPECTED_ERROR, message='Request timeout.')
-        except grpc.RpcError as e:
-            LOGGER.error(e)
-            return Status(e.code(), message='Error occurred. {}'.format(e.details()))
+        response = self._stub.CreatePartition.future(request).result(timeout=timeout)
+        return Status(code=response.error_code, message=response.reason)
 
+    @error_handler([])
     def show_partitions(self, table_name, timeout=10):
         """
         Show all partitions under designated table.
@@ -779,22 +706,16 @@ class GrpcHandler(ConnectIntf):
         """
         request = Prepare.table_name(table_name)
 
-        try:
-            response = self._stub.ShowPartitions.future(request).result(timeout=timeout)
-            status = response.status
-            if status.error_code == 0:
+        response = self._stub.ShowPartitions.future(request).result(timeout=timeout)
+        status = response.status
+        if status.error_code == 0:
 
-                partition_list = [PartitionParam(table_name, p) for p in response.partition_tag_array]
-                return Status(), partition_list
+            partition_list = [PartitionParam(table_name, p) for p in response.partition_tag_array]
+            return Status(), partition_list
 
-            return Status(code=status.error_code, message=status.reason), []
-        except grpc.FutureTimeoutError as e:
-            LOGGER.error(e)
-            return Status(code=Status.UNEXPECTED_ERROR, message="request timeout"), []
-        except grpc.RpcError as e:
-            LOGGER.error(e)
-            return Status(e.code(), message='Error occurred. {}'.format(e.details())), []
+        return Status(code=status.error_code, message=status.reason), []
 
+    @error_handler()
     def drop_partition(self, table_name, partition_tag, timeout=10):
         """
         Drop specific partition under designated table.
@@ -814,16 +735,10 @@ class GrpcHandler(ConnectIntf):
         """
         request = grpc_types.PartitionParam(table_name=table_name, tag=partition_tag)
 
-        try:
-            response = self._stub.DropPartition.future(request).result(timeout=timeout)
-            return Status(code=response.error_code, message=response.reason)
-        except grpc.FutureTimeoutError as e:
-            LOGGER.error(e)
-            return Status(code=Status.UNEXPECTED_ERROR, message="request timeout")
-        except grpc.RpcError as e:
-            LOGGER.error(e)
-            return Status(e.code(), message='Error occurred. {}'.format(e.details()))
+        response = self._stub.DropPartition.future(request).result(timeout=timeout)
+        return Status(code=response.error_code, message=response.reason)
 
+    @error_handler(None)
     def search(self, table_name, top_k, query_records, partition_tags=None, params=None, **kwargs):
         """
         Search similar vectors in designated table
@@ -853,25 +768,20 @@ class GrpcHandler(ConnectIntf):
 
         request = Prepare.search_param(table_name, top_k, query_records, partition_tags, params)
 
-        try:
-            self._search_hook.pre_search()
-            response = self._stub.Search(request)
-            self._search_hook.aft_search()
+        self._search_hook.pre_search()
+        response = self._stub.Search(request)
+        self._search_hook.aft_search()
 
-            if self._search_hook.on_response():
-                return response
+        if self._search_hook.on_response():
+            return response
 
-            if response.status.error_code != 0:
-                return Status(code=response.status.error_code,
-                              message=response.status.reason), []
+        if response.status.error_code != 0:
+            return Status(code=response.status.error_code,
+                          message=response.status.reason), []
 
-            resutls = self._search_hook.handle_response(response)
-            return Status(message='Search vectors successfully!'), resutls
+        resutls = self._search_hook.handle_response(response)
+        return Status(message='Search vectors successfully!'), resutls
 
-        except grpc.RpcError as e:
-            LOGGER.error(e)
-            status = Status(code=e.code(), message='Error occurred: {}'.format(e.details()))
-            return status, []
 
     # def search_by_id(self, table_name, top_k, nprobe, id_, partition_tag_array):
     #
@@ -889,6 +799,7 @@ class GrpcHandler(ConnectIntf):
     #         status = Status(code=e.code(), message='Error occurred: {}'.format(e.details()))
     #         return status, None
 
+    @error_handler(None)
     def search_in_files(self, table_name, file_ids, query_records, top_k, params):
         """
         Query vectors in a table, in specified files.
@@ -923,29 +834,23 @@ class GrpcHandler(ConnectIntf):
         """
 
         file_ids = list(map(int_or_str, file_ids))
-
         infos = Prepare.search_vector_in_files_param(
             table_name, query_records, top_k, file_ids, params
         )
 
-        try:
-            self._search_file_hook.pre_search()
-            response = self._stub.SearchInFiles(infos)
-            self._search_file_hook.aft_search()
+        self._search_file_hook.pre_search()
+        response = self._stub.SearchInFiles(infos)
+        self._search_file_hook.aft_search()
 
-            if self._search_file_hook.on_response():
-                return response
+        if self._search_file_hook.on_response():
+            return response
 
-            if response.status.error_code != 0:
-                return Status(code=response.status.error_code,
-                              message=response.status.reason), []
+        if response.status.error_code != 0:
+            return Status(code=response.status.error_code,
+                          message=response.status.reason), []
 
-            return Status(message='Search vectors successfully!'), \
-                   self._search_file_hook.handle_response(response)
-        except grpc.RpcError as e:
-            LOGGER.error(e)
-            status = Status(code=e.code(), message='Error occurred. {}'.format(e.details()))
-            return status, []
+        return Status(message='Search vectors successfully!'), \
+               self._search_file_hook.handle_response(response)
 
     def __delete_vectors_by_range(self, table_name, start_date=None, end_date=None, timeout=10):
         """
@@ -982,39 +887,26 @@ class GrpcHandler(ConnectIntf):
             LOGGER.error(e)
             return Status(e.code(), message='Error occurred. {}'.format(e.details()))
 
+    @error_handler()
     def delete_by_id(self, table_name, id_array, timeout=None):
-
         request = Prepare.delete_by_id_param(table_name, id_array)
 
-        try:
-            status = self._stub.DeleteByID.future(request).result(timeout=timeout)
-            return Status(code=status.error_code, message=status.reason)
-        except grpc.FutureTimeoutError as e:
-            LOGGER.error(e)
-            return Status(Status.UNEXPECTED_ERROR, message='Request timeout')
-        except grpc.RpcError as e:
-            LOGGER.error(e)
-            return Status(e.code(), message='Error occurred. {}'.format(e.details()))
+        status = self._stub.DeleteByID.future(request).result(timeout=timeout)
+        return Status(code=status.error_code, message=status.reason)
 
+    @error_handler()
     def flush(self, table_name_array):
         request = Prepare.flush_param(table_name_array)
 
-        try:
-            response = self._stub.Flush(request)
-            return Status(code=response.error_code, message=response.reason)
-        except grpc.RpcError as e:
-            LOGGER.error(e)
-            return Status(e.code(), message='Error occurred. {}'.format(e.details()))
+        response = self._stub.Flush(request)
+        return Status(code=response.error_code, message=response.reason)
 
+    @error_handler()
     def compact(self, table_name, timeout):
         request = Prepare.compact_param(table_name)
 
-        try:
-            response = self._stub.Compact(request)
-            return Status(code=response.error_code, message=response.reason)
-        except grpc.RpcError as e:
-            LOGGER.error(e)
-            return Status(e.code(), message='Error occurred. {}'.format(e.details()))
+        response = self._stub.Compact(request)
+        return Status(code=response.error_code, message=response.reason)
 
     def set_config(self, parent_key, child_key, value):
         cmd = "set_config {}.{} {}".format(parent_key, child_key, value)
