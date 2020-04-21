@@ -1,7 +1,7 @@
 import pytest
 import random
 
-from milvus import ParamError
+from milvus import ParamError, ResponseError
 from factorys import records_factory
 
 dim = 128
@@ -22,13 +22,14 @@ class TestSearch:
             'top_k': self.topk,
             'params': self.search_param
         }
-        res, results = gcon.search(**param)
-        assert res.OK()
-        assert len(results) == nq
-        assert len(results[0]) == self.topk
-
-        assert results.shape[0] == nq
-        assert results.shape[1] == self.topk
+        try:
+            results = gcon.search(**param)
+            assert len(results) == nq
+            assert len(results[0]) == self.topk
+            assert results.shape[0] == nq
+            assert results.shape[1] == self.topk
+        except:
+            pytest.fail("Exception raise")
 
     def test_search_default_partition(self, gcon, gvector):
         param = {
@@ -38,11 +39,9 @@ class TestSearch:
             'partition_tags': ["_default"],
             'params': self.search_param
         }
-        res, results = gcon.search(**param)
-        assert res.OK()
+        results = gcon.search(**param)
         assert len(results) == nq
         assert len(results[0]) == self.topk
-
         assert results.shape[0] == nq
         assert results.shape[1] == self.topk
 
@@ -55,9 +54,8 @@ class TestSearch:
             '_async': True
         }
         future = gcon.search(**param)
-        status, results = future.result()
+        results = future.result()
 
-        assert status.OK()
         assert len(results) == nq
         assert len(results[0]) == self.topk
 
@@ -73,11 +71,9 @@ class TestSearch:
             '_async': True
         }
 
-        def cb(status, results):
-            assert status.OK()
+        def cb(results):
             assert len(results) == nq
             assert len(results[0]) == self.topk
-
             assert results.shape[0] == nq
             assert results.shape[1] == self.topk
 
@@ -126,10 +122,15 @@ class TestSearchInFiles:
 
         query_vectors = [[random.random() for _ in range(128)] for _ in range(100)]
         for i in range(5000):
-            status, _ = gcon.search_in_files(gvector, file_ids=[i], top_k=1,
+            try:
+                gcon.search_in_files(gvector, file_ids=[i], top_k=1,
                                              query_records=query_vectors, params=search_param)
-            if status.OK():
                 return
+            except ResponseError:
+                continue
+            except Exception:
+                pytest.fail("Unknown error raise")
+
         assert False
 
     def test_search_in_files_async(self, gcon, gvector):
@@ -141,9 +142,14 @@ class TestSearchInFiles:
         for i in range(5000):
             future = gcon.search_in_files(gvector, file_ids=[i], top_k=1, query_records=query_vectors,
                                           params=search_param, _async=True)
-            status, _ = future.result()
-            if status.OK():
+            try:
+                future.result()
                 return
+            except ResponseError:
+                continue
+            except Exception:
+                pytest.fail("Unknown error raise")
+
         assert False
 
     def test_search_in_files_async_callback(self, gcon, gvector):
@@ -158,9 +164,14 @@ class TestSearchInFiles:
         for i in range(5000):
             future = gcon.search_in_files(gvector, file_ids=[i], top_k=1, query_records=query_vectors,
                                           params=search_param, _async=True, _callback=cb)
-            status, _ = future.result()
-            if status.OK():
+            try:
+                future.result()
                 return
+            except ResponseError:
+                continue
+            except Exception:
+                pytest.fail("Unknown error raise")
+
         assert False
 
     @pytest.mark.parametrize("collection", [[], None, "", 123])

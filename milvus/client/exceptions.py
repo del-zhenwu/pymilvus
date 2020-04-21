@@ -38,3 +38,16 @@ class FutureTimeoutError(TimeoutError):
     """
     Future timeout
     """
+
+
+class ResponseError(ValueError):
+    """
+    Server response error
+    """
+
+    def __init__(self, code, message):
+        self._code = code
+        self._message = message
+
+    def __str__(self):
+        return "ResponseError(code={}, message={})".format(self._code, self._message)

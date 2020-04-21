@@ -39,8 +39,8 @@ def connect(request, ghandler):
     port_default = default_http_port if handler == "HTTP" else default_grpc_port
     port = request.config.getoption("--port", default=port_default)
 
-    milvus = Milvus(handler=ghandler)
-    milvus.connect(host=ip, port=port)
+    milvus = Milvus(host=ip, port=port, handler=ghandler)
+    milvus.connect()
 
     def fin():
         try:
@@ -111,7 +111,7 @@ def gcollection(request, gcon):
     gcon.flush([table_name])
 
     def teardown():
-        status, table_names = gcon.show_collections()
+        table_names = gcon.show_collections()
         for name in table_names:
             gcon.drop_collection(name)
 

@@ -3,6 +3,9 @@
 ## Bug
 - \#190 - Fix rpc return error when error occur
 
+## Future
+- \#192 - Remove status in RPC return values
+
 
 # pymilvus 0.2.10(2020-04-15)
 

@@ -20,14 +20,10 @@ class TestFlush:
         vectors = records_factory(dim, nq)
         for collection in collection_list:
             collection_param["collection_name"] = collection
-
             gcon.create_collection(collection_param)
-
             gcon.insert(collection, vectors)
 
-        status = gcon.flush(collection_list)
-        assert status.OK()
-
+        gcon.flush(collection_list)
         for collection in collection_list:
             gcon.drop_collection(collection)
 
@@ -46,8 +42,7 @@ class TestFlush:
 
             gcon.insert(collection, vectors)
 
-        status = gcon.flush()
-        assert status.OK(), status.message
+        gcon.flush()
 
         for collection in collection_list:
             gcon.drop_collection(collection)
@@ -56,8 +51,7 @@ class TestFlush:
         records = records_factory(dim, nq)
         gcon.insert(gcollection, records)
         future = gcon.flush([gcollection], _async=True)
-        status = future.result()
-        assert status.OK()
+        future.result()
 
     def test_flush_async_callback(self, gcon, gcollection):
 
@@ -73,35 +67,27 @@ class TestFlush:
 class TestCompact:
     def test_compact_normal(self, gcon, gcollection):
         vectors = [[random.random() for _ in range(128)] for _ in range(10000)]
-        status, ids = gcon.add_vectors(collection_name=gcollection, records=vectors)
-        assert status.OK()
+        ids = gcon.add_vectors(collection_name=gcollection, records=vectors)
 
-        status = gcon.compact(gcollection)
-        assert status.OK(), status.message
+        gcon.compact(gcollection)
 
     def test_compact_after_delete(self, gcon, gcollection):
         vectors = [[random.random() for _ in range(128)] for _ in range(10000)]
-        status, ids = gcon.insert(collection_name=gcollection, records=vectors)
-        assert status.OK(), status.message
-
-        status = gcon.flush([gcollection])
-        assert status.OK(), status.message
-
-        status = gcon.delete_by_id(gcollection, ids[100:1000])
-        assert status, status.message
-
-        status = gcon.compact(gcollection)
-        assert status.OK(), status.message
+        try:
+            ids = gcon.insert(collection_name=gcollection, records=vectors)
+            gcon.flush([gcollection])
+            gcon.delete_by_id(gcollection, ids[100:1000])
+            gcon.compact(gcollection)
+        except:
+            pytest.fail("Exception fail")
 
     def test_compact_async_normal(self, gcon, gvector):
         future = gcon.compact(gvector, _async=True)
-        status = future.result()
-        assert status.OK()
+        future.result()
 
     def test_compact_async_callback(self, gcon, gvector):
-
-        def cb(status):
-            assert status.OK()
+        def cb():
+            pass
 
         future = gcon.compact(gvector, _async=True, _callback=cb)
         future.done()

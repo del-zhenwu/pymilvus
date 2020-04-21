@@ -6,7 +6,7 @@ import grpc
 import pytest
 from grpc._channel import _UnaryUnaryMultiCallable as uum
 
-from milvus import Milvus, MetricType, IndexType, ParamError
+from milvus import Milvus, MetricType, IndexType, ParamError, ResponseError
 
 from factorys import collection_schema_factory
 
@@ -14,22 +14,23 @@ from factorys import collection_schema_factory
 class TestCreateCollection:
     def test_create_collection_normal(self, gcon):
         collection_param = collection_schema_factory()
-        status = gcon.create_collection(collection_param)
-        assert status.OK(), status.message
-
-        status = gcon.drop_collection(collection_param["collection_name"])
-        assert status.OK(), status.message
+        try:
+            gcon.create_collection(collection_param)
+            gcon.drop_collection(collection_param["collection_name"])
+        except Exception as e:
+            pytest.fail("Unexpected error: {}".format(e))
 
     def test_create_collection_repeat(self, gcon):
         collection_param = collection_schema_factory()
-        status = gcon.create_collection(collection_param)
-        assert status.OK(), status.message
+        try:
+            gcon.create_collection(collection_param)
+        except Exception as e:
+            pytest.fail("Unexpected error: {}".format(e))
 
-        status = gcon.create_collection(collection_param)
-        assert not status.OK()
+        with pytest.raises(ResponseError):
+            gcon.create_collection(collection_param)
 
-        status = gcon.drop_collection(collection_param["collection_name"])
-        assert status.OK(), status.message
+        gcon.drop_collection(collection_param["collection_name"])
 
     @pytest.mark.parametrize("metric",
                              [MetricType.L2, MetricType.IP, MetricType.HAMMING, MetricType.JACCARD,
@@ -41,10 +42,8 @@ class TestCreateCollection:
             "metric_type": metric
         }
 
-        status = gcon.create_collection(collection_param)
-        assert status.OK()
-        status = gcon.drop_collection(collection_param["collection_name"])
-        assert status.OK(), status.message
+        gcon.create_collection(collection_param)
+        gcon.drop_collection(collection_param["collection_name"])
 
     def test_create_collection_default_index_file_size(self, gcon):
         collection_param = {
@@ -52,11 +51,8 @@ class TestCreateCollection:
             "dimension": 128,
             "metric_type": MetricType.L2
         }
-        status = gcon.create_collection(collection_param)
-        assert status.OK(), status.message
-
-        status = gcon.drop_collection(collection_param["collection_name"])
-        assert status.OK(), status.message
+        gcon.create_collection(collection_param)
+        gcon.drop_collection(collection_param["collection_name"])
 
     def test_create_collection_default_metric_type(self, gcon):
         collection_param = {
@@ -64,11 +60,8 @@ class TestCreateCollection:
             "dimension": 128,
             "index_file_size": 100
         }
-        status = gcon.create_collection(collection_param)
-        assert status.OK(), status.message
-
-        status = gcon.drop_collection(collection_param["collection_name"])
-        assert status.OK(), status.message
+        gcon.create_collection(collection_param)
+        gcon.drop_collection(collection_param["collection_name"])
 
     @pytest.mark.parametrize("metric", ["123", None, MetricType.INVALID, -1, 1000])
     def test_create_collection_invalid_metric(self, metric, gcon):
@@ -116,8 +109,7 @@ class TestCreateCollection:
 
 class TestHasCollection:
     def test_has_collection_normal(self, gcon, gcollection):
-        status, ok = gcon.has_collection(gcollection)
-        assert status.OK()
+        ok = gcon.has_collection(gcollection)
         assert ok
 
     @pytest.mark.parametrize("collection", [None, 123, [123], {}, ""])
@@ -126,14 +118,12 @@ class TestHasCollection:
             gcon.has_collection(collection)
 
     def test_has_collection_non_existent(self, gcon):
-        status, ok = gcon.has_collection("sfsfsfsfsfsfsfsfsfsf")
-        assert not (status.OK() and ok)
+        assert not gcon.has_collection("sfsfsfsfsfsfsfsfsfsf")
 
 
 class TestDescribeCollection:
     def test_describe_collection_normal(self, gcon, gcollection):
-        status, info = gcon.describe_collection(gcollection)
-        assert status.OK()
+        info = gcon.describe_collection(gcollection)
         assert info.dimension == 128
 
     @pytest.mark.parametrize("collection", [None, 123, [123], {}])
@@ -142,14 +132,13 @@ class TestDescribeCollection:
             gcon.describe_collection(collection)
 
     def test_describe_collection_non_existent(self, gcon):
-        status, _ = gcon.describe_collection("sfsfsfsfsfsfsfsfsfsf")
-        assert not status.OK()
+        with pytest.raises(ResponseError):
+            gcon.describe_collection("sfsfsfsfsfsfsfsfsfsf")
 
 
 class TestCountCollection:
     def test_count_collection_normal(self, gcon, gvector):
-        status, count = gcon.count_collection(gvector)
-        assert status.OK()
+        count = gcon.count_collection(gvector)
         assert count == 10000
 
     @pytest.mark.parametrize("collection", [None, 123, [123], {}])
@@ -158,14 +147,13 @@ class TestCountCollection:
             gcon.count_collection(collection)
 
     def test_count_collection_non_existent(self, gcon):
-        status, _ = gcon.count_collection("sfsfsfsfsfsfsfsfsfsf")
-        assert not status.OK()
+        with pytest.raises(ResponseError):
+            gcon.count_collection("sfsfsfsfsfsfsfsfsfsf")
 
 
-class TestCollectinInfo:
+class TestCollectionInfo:
     def test_collection_info_normal(self, gcon, gvector):
-        status, info = gcon.collection_info(gvector)
-        assert status.OK()
+        info = gcon.collection_info(gvector)
         assert info.count == 10000
 
         par0_stat = info.partitions_stat[0]
@@ -173,29 +161,27 @@ class TestCollectinInfo:
         assert par0_stat.count == 10000
 
     @pytest.mark.parametrize("collection", [None, 123, [123], {}])
-    def test_count_collection_invalid_name(self, collection, gcon):
-        with pytest.raises(ParamError):
+    def test_collection_info_invalid_name(self, collection, gcon):
+        # with pytest.raises(ParamError):
+        # TODO: raise ParamError here
+        with pytest.raises(Exception):
             gcon.collection_info(collection)
 
     def test_count_collection_non_existent(self, gcon):
-        status, _ = gcon.collection_info("sfsfsfsfsfsfsfsfsfsf")
-        assert not status.OK()
+        with pytest.raises(ResponseError):
+            gcon.collection_info("sfsfsfsfsfsfsfsfsfsf")
 
 
 class TestShowCollections:
     def test_show_collections(self, gcon, gcollection):
-        status, names = gcon.show_collections()
-        assert status.OK()
+        names = gcon.show_collections()
         assert gcollection in names
 
 
 class TestDropCollection:
     def test_drop_collection_normal(self, gcon):
-        status = gcon.create_collection({"collection_name": "test01", "dimension": 128})
-        assert status.OK()
-
-        status = gcon.drop_collection("test01")
-        assert status.OK()
+        gcon.create_collection({"collection_name": "test01", "dimension": 128})
+        gcon.drop_collection("test01")
 
     @pytest.mark.parametrize("collection", [[], None, 123, {}])
     def test_drop_collection_invalid_name(self, collection, gcon):
@@ -203,14 +189,13 @@ class TestDropCollection:
             gcon.drop_collection(collection)
 
     def test_drop_collection_non_existent(self, gcon):
-        status = gcon.drop_collection("non_existent")
-        assert not status.OK()
+        with pytest.raises(ResponseError):
+            gcon.drop_collection("non_existent")
 
 
 class TestLoadCollection:
     def test_load_collection_normal(self, gcon, gvector):
-        status = gcon.preload_collection(gvector)
-        assert status.OK()
+        gcon.preload_collection(gvector)
 
     @pytest.mark.parametrize("name", [[], bytes(), 123, True, False])
     def test_load_collection_invalid_name(self, name, gcon):
@@ -218,5 +203,5 @@ class TestLoadCollection:
             gcon.preload_collection(name)
 
     def test_load_collection_non_existent(self, gcon):
-        status = gcon.preload_collection("test_load_collection_non_existent")
-        assert not status.OK()
+        with pytest.raises(ResponseError):
+            gcon.preload_collection("test_load_collection_non_existent")

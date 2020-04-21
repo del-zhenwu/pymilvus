@@ -302,6 +302,7 @@ class Milvus:
 
             res: int, table row count
         """
+        # import pdb;pdb.set_trace()
         check_pass_param(collection_name=collection_name)
 
         return self._stub.count_collection(collection_name, timeout)

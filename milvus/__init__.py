@@ -7,7 +7,8 @@ from .client.exceptions import (
     ParamError,
     ConnectError,
     NotConnectError,
-    RepeatingConnectError
+    RepeatingConnectError,
+    ResponseError
 )
 from .client import __version__
 

@@ -1,17 +1,13 @@
 import pytest
 
-from milvus import ParamError
+from milvus import ParamError, ResponseError
 
 
 class TestSegment:
     def test_get_segment_ids(self, gcon, gvector):
-        status, info = gcon.collection_info(gvector)
-        assert status.OK()
-
+        info = gcon.collection_info(gvector)
         seg0 = info.partitions_stat[0].segments_stat[0]
-
-        status, ids = gcon.get_vector_ids(gvector, seg0.segment_name)
-        assert status.OK(), status.message
+        ids = gcon.get_vector_ids(gvector, seg0.segment_name)
         assert isinstance(ids, list)
         assert len(ids) == 10000
 
@@ -22,8 +18,8 @@ class TestSegment:
             gcon.get_vector_ids(collection, segment)
 
     def test_get_segment_non_existent_collection_segment(self, gcon, gcollection):
-        status, _ = gcon.get_vector_ids("ijojojononsfsfswgsw", "aaa")
-        assert not status.OK()
+        with pytest.raises(ResponseError):
+            gcon.get_vector_ids("ijojojononsfsfswgsw", "aaa")
 
-        status, _ = gcon.get_vector_ids(gcollection, "aaaaaa")
-        assert not status.OK()
+        with pytest.raises(ResponseError):
+            gcon.get_vector_ids(gcollection, "aaaaaa")

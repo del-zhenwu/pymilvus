@@ -74,9 +74,11 @@ class Future(AbstractFuture):
                     if self._done_cb:
                         results = self.on_response(self._response)
                         if isinstance(results, tuple):
-                            self._done_cb(*self.on_response(self._response))
+                            if results[0].code == 0:
+                                self._done_cb(results[1])
                         else:
-                            self._done_cb(self.on_response(self._response))
+                            if results.code == 0:
+                                self._done_cb()
                 except:
                     raise
                 finally:
@@ -103,7 +105,10 @@ class Future(AbstractFuture):
             # just return response object received from gRPC
             return self._response
 
-        return self.on_response(self._response)
+        response = self.on_response(self._response)
+        if isinstance(response, tuple) and len(response) > 1:
+            return response[1]
+        # return response
 
     def cancel(self):
         with self._condition:
