@@ -33,7 +33,7 @@ def main():
     # Create collection demo_collection if it dosen't exist.
     collection_name = 'example_collection_'
 
-    status, ok = milvus.has_collection(collection_name)
+    ok = milvus.has_collection(collection_name)
     if not ok:
         param = {
             'collection_name': collection_name,
@@ -45,14 +45,14 @@ def main():
         milvus.create_collection(param)
 
     # Show collections in Milvus server
-    _, collections = milvus.show_collections()
+    collections = milvus.show_collections()
 
     # present collection info
-    _, info = milvus.collection_info(collection_name)
+    info = milvus.collection_info(collection_name)
     print(info)
 
     # Describe demo_collection
-    _, collection = milvus.describe_collection(collection_name)
+    collection = milvus.describe_collection(collection_name)
     print(collection)
 
     # 10000 vectors with 16 dimension
@@ -63,13 +63,13 @@ def main():
     #     `vectors = np.random.rand(10000, 16).astype(np.float32)`
 
     # Insert vectors into demo_collection, return status and vectors id list
-    status, ids = milvus.insert(collection_name=collection_name, records=vectors)
+    ids = milvus.insert(collection_name=collection_name, records=vectors)
 
     # Flush collection  inserted data to disk.
     milvus.flush([collection_name])
 
     # Get demo_collection row count
-    status, result = milvus.count_collection(collection_name)
+    count = milvus.count_collection(collection_name)
 
     # create index of vectors, search more rapidly
     index_param = {
@@ -80,10 +80,10 @@ def main():
     # You can search vectors without creating index. however, Creating index help to
     # search faster
     print("Creating index: {}".format(index_param))
-    status = milvus.create_index(collection_name, IndexType.IVF_FLAT, index_param)
+    milvus.create_index(collection_name, IndexType.IVF_FLAT, index_param)
 
     # describe index, get information of index
-    status, index = milvus.describe_index(collection_name)
+    index = milvus.describe_index(collection_name)
     print(index)
 
     # Use the top 10 vectors for similarity search
@@ -103,23 +103,20 @@ def main():
         'params': search_param,
     }
 
-    status, results = milvus.search(**param)
-    if status.OK():
-        # indicate search result
-        # also use by:
-        #   `results.distance_array[0][0] == 0.0 or results.id_array[0][0] == ids[0]`
-        if results[0][0].distance == 0.0 or results[0][0].id == ids[0]:
-            print('Query result is correct')
-        else:
-            print('Query result isn\'t correct')
-
-        # print results
-        print(results)
+    results = milvus.search(**param)
+    # indicate search result
+    # also use by:
+    #   `results.distance_array[0][0] == 0.0 or results.id_array[0][0] == ids[0]`
+    if results[0][0].distance == 0.0 or results[0][0].id == ids[0]:
+        print('Query result is correct')
     else:
-        print("Search failed. ", status)
+        print('Query result isn\'t correct')
+
+    # print results
+    print(results)
 
     # Delete demo_collection
-    status = milvus.drop_collection(collection_name)
+    milvus.drop_collection(collection_name)
 
 
 if __name__ == '__main__':
